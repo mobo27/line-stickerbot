@@ -45,9 +45,9 @@ def resize_sticker(image, filename):
     with Image(file=image) as img:
         ratio = 1
         if img.width > img.height:
-            ratio = 512/img.width
-        if img.height > img.width:
-            ratio = 512/img.height
+            ratio = 512.0/img.width
+        else:
+            ratio = 512.0/img.height
         img.resize(int(img.width*ratio), int(img.height*ratio), 'mitchell')
         img.save(filename=("downloads/" + filen))
 
