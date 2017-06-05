@@ -1,5 +1,6 @@
 import json
 import logging
+from threading import Thread
 from time import sleep
 import urllib.request
 import urllib.parse
@@ -29,7 +30,8 @@ LINE_URL = "https://store.line.me/stickershop/product/"
 WRONG_URL_TEXT = ("That doesn't appear to be a valid URL. "
                   "To start, send me a URL that starts with " + LINE_URL)
 
-def dl_stickers(page):
+def dl_stickers(sticker_id, page):
+    print("DL Stickers")
     images = page.find_all('span', attrs={"style": not ""})
     for i in images:
         imageurl = i['style']
@@ -37,23 +39,50 @@ def dl_stickers(page):
         imageurl = imageurl['background-image']
         imageurl = imageurl.replace('url(', '').replace(')', '')
         imageurl = imageurl[1:-15]
-        response = urllib.request.urlopen(imageurl)
-        resize_sticker(response, imageurl)
+#        print("Downloading Image:" + imageurl)
+#        response = urllib.request.urlopen(imageurl)
+#        resize_sticker(sticker_id, response, imageurl)
+        thread = Thread(target = dl_resize_sticker, args = (sticker_id, imageurl))
+        thread.start()
+    if len(images) == 0:
+        print("No images")
+        requests.get(URL + 'sendMessage', params=dict(chat_id=update['message']['chat']['id'], text="No Images"))
 
-def resize_sticker(image, filename):
-    filen = filename[-7:]
+
+
+def dl_resize_sticker(sticker_id, imageurl):
+    print("Downloading Image:" + imageurl)
+    image = urllib.request.urlopen(imageurl)
+    filen = imageurl.split('/')[6]+imageurl[-4:]
+    directory = "downloads/line_sticker_"+sticker_id+"/"
+    try:
+        os.stat(directory)
+    except:
+        os.mkdir(directory)
+
     with Image(file=image) as img:
         ratio = 1
         if img.width > img.height:
             ratio = 512.0/img.width
+            newWidth  = 512.0
+            newHeight = int(img.height*ratio)
         else:
             ratio = 512.0/img.height
-        img.resize(int(img.width*ratio), int(img.height*ratio), 'mitchell')
-        img.save(filename=("downloads/" + filen))
+            newWidth  = int(img.width*ratio)
+            newHeight = 512.0
+#        print("W: {0} H: {1} Ratio: {2} newW:{3} newH:{4}".format(img.width, img.height, ratio, img.width*ratio, img.height*ratio))
+        img.resize(int(newWidth), int(newHeight), 'mitchell')
+        img.save(filename=(directory + filen))
+        requests.post(URL + 'sendDocument', params=dict(
+            chat_id = update['message']['chat']['id']
+        ), files=dict(
+            document = open(directory + filen, 'rb')
+        ))
 
-def send_stickers(page):
-    dl_stickers(page)
-    with ZipFile('stickers.zip', 'w') as stickerzip:
+
+def send_stickers(sticker_id, page):
+    dl_stickers(sticker_id, page)
+    with ZipFile('packed_stickers/line_stickers'+sticker_id+'.zip', 'w') as stickerzip:
         for root, dirs, files in os.walk("downloads/"):
             for file in files:
                 stickerzip.write(os.path.join(root, file))
@@ -61,7 +90,7 @@ def send_stickers(page):
     requests.post(URL + 'sendDocument', params=dict(
         chat_id = update['message']['chat']['id']
     ), files=dict(
-        document = open('stickers.zip', 'rb')
+        document = open('packed_stickers/line_stickers'+sticker_id+'.zip', 'rb')
     ))
     print("snet;)")
 
@@ -84,6 +113,7 @@ while True:
                 if update['message']['text'][:42] == LINE_URL:
                     # It's a message! Let's send it back :D
                     sticker_url = update['message']['text']
+                    sticker_id = sticker_url.split('/')[5]
                     user = update['message']['chat']['id']
                     request = requests.get(sticker_url).text
                     stickerpage = BeautifulSoup(request, "html.parser")
@@ -93,7 +123,8 @@ while True:
                                  params=dict(chat_id=update['message']['chat']['id'],
                                              text="Fetching \"" + stickertitle + "\""))
                     print(name + " (" + str(user) + ")"+ " requested " + sticker_url)
-                    send_stickers(stickerpage)
+                    dl_stickers(sticker_id, stickerpage)
+#                    send_stickers(sticker_id, stickerpage)
                 else:
                     requests.get(URL + 'sendMessage',
                                  params=dict(chat_id=update['message']['chat']['id'],
