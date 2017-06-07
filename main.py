@@ -42,7 +42,13 @@ def dl_stickers(sticker_id, page):
 #        print("Downloading Image:" + imageurl)
 #        response = urllib.request.urlopen(imageurl)
 #        resize_sticker(sticker_id, response, imageurl)
-        thread = Thread(target = dl_resize_sticker, args = (sticker_id, imageurl))
+        directory = "downloads/line_sticker_"+sticker_id+"/"
+        try:
+            os.stat(directory)
+        except:
+            os.mkdir(directory)
+
+        thread = Thread(target = dl_resize_sticker, args = (sticker_id, directory, imageurl))
         thread.start()
     if len(images) == 0:
         print("No images")
@@ -50,15 +56,10 @@ def dl_stickers(sticker_id, page):
 
 
 
-def dl_resize_sticker(sticker_id, imageurl):
+def dl_resize_sticker(sticker_id, directory, imageurl):
     print("Downloading Image:" + imageurl)
     image = urllib.request.urlopen(imageurl)
     filen = imageurl.split('/')[6]+imageurl[-4:]
-    directory = "downloads/line_sticker_"+sticker_id+"/"
-    try:
-        os.stat(directory)
-    except:
-        os.mkdir(directory)
 
     with Image(file=image) as img:
         ratio = 1
